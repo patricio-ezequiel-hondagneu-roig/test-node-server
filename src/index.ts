@@ -1,23 +1,55 @@
-import bodyParser from 'body-parser';
 import express from 'express';
 import bearerToken from 'express-bearer-token';
 import fs from 'fs';
-import jwt from 'jsonwebtoken';
-import { AuthenticationRequestDTO } from './dto/authentication-request.dto';
-import { AuthenticationResponseDTO } from './dto/authentication-response.dto';
-import { AccessTokenPayload } from './interfaces/token-payload.interface';
-import { User } from './interfaces/user.interface';
-import { users } from './users';
 import httpStatus from 'http-status';
+import jwt from 'jsonwebtoken';
 import { SERVER_PORT } from './constants/server-port.constant';
+import { AuthenticatedUserResponseDTO, AuthenticationRequestDTO, AuthenticationResponseDTO, RegistrationRequestDTO } from './dto';
+import { AccessTokenPayload, User } from './interfaces';
+import { users } from './users';
 
 const privateKey = fs.readFileSync( './private.key', 'utf-8' );
 const publicKey = fs.readFileSync( './public.key', 'utf-8' );
 
 const app = express( );
 
-app.use( bodyParser.json( ) );
+// Add middlewares to extract the body (as JSON) and JWT token from the incoming requests.
+app.use( express.json( ) );
 app.use( bearerToken( ) );
+
+/* Endpoint to handle registration requests.
+ *
+ * It receives the registration data and returns a successful response if the user could be registered, or an error
+ * otherwise.
+ */
+app.post( '/register', async ( req, res ) => {
+	// Extract the provided registration data from the request body.
+	const registrationData: RegistrationRequestDTO = req.body;
+
+	// Verify whether or not there's an existing user with the same national ID.
+	const userAlreadyExists: boolean = users.some( ( user: User ) => user.nationalId === registrationData.nationalId );
+
+	// Set an error response and return if there is an existing user with the same national ID.
+	if ( userAlreadyExists ) {
+		res
+			.status( httpStatus.UNPROCESSABLE_ENTITY )
+			.json( `A user already exists with national ID "${ registrationData.nationalId }".`);
+	}
+
+	// The ID of the last registered user.
+	const lastId = users.slice( -1 )[ 0 ].__id;
+
+	// Store the new user and return a successful response.
+	const user: User = {
+		__id: lastId + 1,
+		nationalId: registrationData.nationalId,
+		password: registrationData.password,
+		fullName: registrationData.fullName,
+		nationality: registrationData.nationality,
+	};
+	users.push( user );
+	res.status( httpStatus.CREATED ).end( );
+});
 
 /* Endpoint to handle authentication requests.
  *
@@ -54,13 +86,13 @@ app.post( '/authenticate', async ( req, res ) => {
 	res.status( httpStatus.OK ).json( responseDTO );
 });
 
-/* Endpoint to handle requests for the authenticated user's data.
+/* Endpoint to handle requests for the authenticated user's information.
  *
  * It verifies the presence and validity of the access token and returns the data of the authenticated user.
  *
  * If the verification fails, it returns an error.
  */
-app.get( '/user/me', async ( req, res ) => {
+app.get( '/authenticated-user', async ( req, res ) => {
 	// Extract the access token from the request.
 	const accessToken: string | undefined = req.token;
 
@@ -75,16 +107,22 @@ app.get( '/user/me', async ( req, res ) => {
 		const tokenPayload: AccessTokenPayload = <AccessTokenPayload> jwt.verify( accessToken, publicKey, {
 			algorithms: [ 'RS256' ],
 		});
-		const authenticatedUser = users.find( ( user ) => user.__id === tokenPayload.__id );
+		const authenticatedUser: User | undefined = users.find( ( user ) => user.__id === tokenPayload.__id );
 
 		// Set an error response and return if the user doesn't exist.
 		if ( authenticatedUser === undefined ) {
 			res.status( httpStatus.NOT_FOUND ).json( 'The user does not exist.' );
+			return;
 		}
-		// Return the data of the authenticated user in the response.
-		else {
-			res.status( httpStatus.OK ).json( authenticatedUser );
-		}
+
+		// Return the authenticated user's information in the body of the response.
+		const responseDTO: AuthenticatedUserResponseDTO = {
+			__id: authenticatedUser.__id,
+			nationalId: authenticatedUser.nationalId,
+			fullName: authenticatedUser.fullName,
+			nationality: authenticatedUser.nationality,
+		};
+		res.status( httpStatus.OK ).json( responseDTO );
 	}
 	// Set an error response and return if the token provided was invalid.
 	catch ( error ) {

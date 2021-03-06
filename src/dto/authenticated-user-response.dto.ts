@@ -1,7 +1,9 @@
 /**
- * Entity that represents a user of the system.
+ * Data transfer object that describes the body of the response for an authenticated user request.
+ *
+ * It contains all the information about the user excepting the password.
  */
-export interface User {
+ export interface AuthenticatedUserResponseDTO {
 
 	/**
 	 * The unique ID of the user.
@@ -14,11 +16,6 @@ export interface User {
 	nationalId: string;
 
 	/**
-	 * The password of the user.
-	 */
-	password: string;
-
-	/**
 	 * The full name of the user.
 	 */
 	fullName: string;
@@ -27,5 +24,4 @@ export interface User {
 	 * The nationality of the user.
 	 */
 	nationality: string;
-
 }

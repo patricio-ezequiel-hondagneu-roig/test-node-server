@@ -9,11 +9,13 @@ export const users: User[ ] = [
 		nationalId: '11111111',
 		password: 'password',
 		fullName: 'User 1',
+		nationality: 'Argentina',
 	},
 	{
 		__id: '2',
 		nationalId: '22222222',
 		password: 'password',
 		fullName: 'User 2',
+		nationality: 'Uruguay'
 	},
 ];
